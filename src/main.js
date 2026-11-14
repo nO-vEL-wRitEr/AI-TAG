@@ -2,6 +2,9 @@
 const $=id=>document.getElementById(id), C=$('field');
 let ctx=C.getContext('2d',{alpha:false});
 const W=720,S=W/72,R=46,PI2=2*Math.PI, dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y), clamp=(n,a,b)=>Math.min(b,Math.max(a,n));
+// Mobile draws the same logical 720×720 world at 540 physical pixels for smoother performance.
+const mobileViewport=window.matchMedia('(pointer: coarse)').matches;
+if(mobileViewport){C.width=540;C.height=540;ctx.setTransform(.75,0,0,.75,0,0);}
 const xp=x=>W/2+(x-state.camera.x)*S,yp=y=>W/2+(y-state.camera.y)*S;
 const SKILLS={dash:10,freeze:16,blink:19};
 const state={mode:'demo',difficulty:'normal',duration:'60',avatar:'girl',velocity:{x:0,y:0},motion:{lean:0,wind:0,speed:0,dir:0},relayWave:0,camera:{x:0,y:0},walk:0,facing:'down',running:false,paused:false,elapsed:0,player:{x:0,y:0},prev:{x:0,y:0},bots:[],cool:{dash:0,freeze:0,blink:0},attackCooldown:0,attackFlash:0,attackCount:0,dash:0,freeze:0,cloak:0,shield:0,invuln:0,level:1,score:0, gems:0,orb:null,stageSpawned:false,burstCycle:-1,warn:0,burst:0,lastKnown:{x:0,y:0},gpsWatch:null,gpsOrigin:null,accuracy:0,gpsLastFix:null,gpsUpdate:0,gpsHold:0,flash:0,eventUntil:0,previousTime:performance.now(),lastResult:'',particles:[]};
