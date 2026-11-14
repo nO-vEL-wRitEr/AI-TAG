@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#071320">
+<title>AI-TAG | CHIBI RUN — OOP Edition</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main>
+ <div class="eyebrow">SOLO CHASE · NATURAL WALK & SPECIAL ATTACK</div>
+ <h1>🏃 AI TAG <b>CHIBI RUN!</b></h1>
+ <p class="sub">자연스러운 관절 애니메이션 · 스페이스 공격 · 60초 / 5분 / 무한 릴레이</p>
+ <section class="panel" aria-label="술래잡기 게임">
+  <div class="row"><h2>🎮 게임 설정</h2><span id="pill" class="chip">시작 전</span></div>
+  <div class="modebar"><button type="button" id="demoMode" class="mode active">🕹️ 화면 조작</button><button type="button" id="gpsMode" class="mode">📍 GPS 걷기 (실험)</button></div>
+  <div class="row" style="margin-top:11px"><div class="label" id="modeDesc" style="margin:0;flex:1">방향키 / WASD / 아래 버튼으로 움직여!</div><label class="label" style="margin:0;white-space:nowrap">난이도 <select id="difficulty" class="difficulty" aria-label="난이도"><option value="easy">연습</option><option value="normal" selected>보통</option><option value="hard">카오스</option></select></label></div>
+  <div class="timeHeading"><strong>⏱️ 플레이 시간 선택</strong><small id="durationDesc">60초 동안 버티면 승리!</small></div>
+  <div class="timeModes" role="group" aria-label="플레이 시간 선택">
+   <button type="button" class="timeChoice selected" data-duration="60" aria-pressed="true"><b>⚡ 60초</b><span>빠른 승부</span></button>
+   <button type="button" class="timeChoice" data-duration="300" aria-pressed="false"><b>🕔 5분</b><span>장기 생존</span></button>
+   <button type="button" class="timeChoice" data-duration="relay" aria-pressed="false"><b>♾️ 무한 릴레이</b><span>45초마다 교대</span></button>
+  </div>
+  <div class="charHeading"><strong>🧑‍🎨 내 캐릭터 선택</strong><small>원본 그림 · 관절 애니메이션 · 게임 중 교체 가능</small></div>
+  <div class="charGrid" role="group" aria-label="캐릭터 선택">
+    <button class="charChoice" type="button" id="boyChoice" aria-pressed="false"><span class="chosen">✓</span><canvas id="boyPreview" width="130" height="128" aria-hidden="true"></canvas><span class="charName">남자 캐릭터</span><span class="charSub">💙 네이비 후드 · 짧은 머리</span></button>
+    <button class="charChoice selected" type="button" id="girlChoice" aria-pressed="true"><span class="chosen">✓</span><canvas id="girlPreview" width="130" height="128" aria-hidden="true"></canvas><span class="charName">놀이공원 소녀</span><span class="charSub">🎈 놀이공원 교복 소녀 · 원본 그림</span></button>
+  </div>
+  <div class="stats" aria-live="off">
+   <div class="stat"><span class="val" id="remaining">60</span><span class="unit" id="remainingLabel">남은 시간</span></div>
+   <div class="stat"><span class="val" id="distance">—</span><span class="unit">술래 거리 m</span></div>
+   <div class="stat"><span class="val" id="level">1</span><span class="unit">AI 속도 단계</span></div>
+   <div class="stat"><span class="val" id="score">0</span><span class="unit">점수</span></div>
+  </div>
+  <div class="bar" aria-label="진행률"><div id="progress"></div></div>
+  <div class="worldNote"><span>🎈 <b>옷깃·머리카락 애니메이션</b> · 부드러운 이동 · 릴레이 모드</span><span>↗ 우측 상단 미니맵</span></div>
+  <div class="canvaswrap"><canvas id="field" width="720" height="720" aria-label="스크롤되는 가상 공원 경기장: 선택한 캐릭터, 빨간 AI 술래, 노란 에너지 조각"></canvas></div>
+  <div class="legend"><span>🧍 선택한 캐릭터</span><span>👹 빨간 AI 술래</span><span id="gemLegend">💎 에너지 조각 (+점수 / 재사용시간 감소)</span></div>
+  <div id="event" class="event" role="status">✨ 술래는 10초마다 빨라져! 초능력으로 60초를 버텨봐.</div>
+  <div class="powerTitle"><h2>✨ 초능력</h2><small id="powersHint">1 / 2 / 3 · 공격은 스페이스</small></div>
+  <div class="powers">
+   <button type="button" id="dash" class="power" data-id="dash"><span class="name">⚡ 대시</span><span class="key">1 · 순식간에 가속</span><span class="cool">준비 완료</span></button>
+   <button type="button" id="freeze" class="power" data-id="freeze"><span class="name">❄️ 시간 정지</span><span class="key">2 · 술래 멈춤</span><span class="cool">준비 완료</span></button>
+   <button type="button" id="blink" class="power" data-id="blink"><span class="name">✨ 순간이동</span><span class="key">3 · 탈출</span><span class="cool">준비 완료</span></button>
+  </div>
+  <div class="attackRow" aria-label="공격 조작">
+    <button type="button" id="attack" class="attackButton" disabled>
+      <span class="attackIcon">💥</span><span class="attackCopy"><strong>충격파 공격</strong><small>보통·카오스 전용 · SPACE / 터치</small></span><span id="attackCool" class="attackCool">준비 완료</span>
+    </button>
+    <p id="attackInfo" class="attackInfo">보통 난이도부터 사용 가능 · 가까운 AI 술래를 밀어내고 잠시 기절시켜!</p>
+  </div>
+  <div id="controls" class="controls"><div class="hint">방향 버튼을 <b>길게 눌러</b> 이동해.<br>키보드: WASD / 방향키<br>공격: SPACE · 능력: 1 · 2 · 3</div><div class="dpad"><button type="button" data-dir="up" class="up" aria-label="위">▲</button><button type="button" data-dir="left" class="left" aria-label="왼쪽">◀</button><button type="button" data-dir="down" class="down" aria-label="아래">▼</button><button type="button" data-dir="right" class="right" aria-label="오른쪽">▶</button></div><div class="hint">💎를 주우면 점수 획득!<br>⚠️ 후반에는 술래가 늘어날 수도 있어.</div></div>
+  <div class="playrow"><button type="button" id="start" class="play">▶ 게임 시작</button><button type="button" id="pause" class="secondary" disabled>⏸ 일시정지</button><button type="button" id="stop" class="secondary hidden" title="현재 게임 종료">■ 종료</button></div>
+  <p class="record">🏆 이번 기기 최고 점수: <strong id="record">0</strong> <span id="collected" style="float:right">💎 0개</span></p>
+ </section>
+ <aside class="note"><strong>📍 GPS 모드 안내</strong><br>GPS는 HTTPS 주소로 접속하고 위치 권한을 허용해야 작동해. GPS 모드는 <strong>걷기 전용</strong>이며, 대시·순간이동 대신 가상 보호 능력이 제공돼. 넓고 안전하며 차량이 없는 허용된 장소에서만 사용하고, 이동 중 화면을 보지 마. 위치 정확도가 떨어지거나 빠르게 움직이면 자동으로 일시정지해. 이 버전은 실제 지도·장애물 인식 없이 가상 공간에서만 추격을 계산하며 GPS 위치 정보는 외부 서버로 보내지 않아.</aside>
+</main>
+<script defer src="./src/artwork.js"></script>
+<script defer src="./src/main.js"></script>
+</body>
+</html>
