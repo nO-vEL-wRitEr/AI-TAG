@@ -1,5 +1,6 @@
 (()=>{'use strict';
-const $=id=>document.getElementById(id), C=$('field'),ctx=C.getContext('2d');
+const $=id=>document.getElementById(id), C=$('field');
+let ctx=C.getContext('2d',{alpha:false});
 const W=720,S=W/72,R=46,PI2=2*Math.PI, dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y), clamp=(n,a,b)=>Math.min(b,Math.max(a,n));
 const xp=x=>W/2+(x-state.camera.x)*S,yp=y=>W/2+(y-state.camera.y)*S;
 const SKILLS={dash:10,freeze:16,blink:19};
@@ -262,6 +263,22 @@ function drawAvatar(g,x,y,kind,phase=0,moving=false,scale=1,facing='down'){
 }
  // Sprite assets are loaded from artwork.js
  const sourceIllustration=window.AITagArtwork;
+// Reduce per-frame bitmap scaling cost on mobile.
+const spriteCache=new Map();
+function spriteFor(kind){
+ const src=sourceIllustration[kind];
+ if(!src||!src.complete||!src.naturalWidth)return src;
+ const existing=spriteCache.get(kind);
+ if(existing&&existing.source===src)return existing.canvas;
+ const buffer=document.createElement('canvas'),factor=.33;
+ buffer.width=Math.max(1,Math.round(src.naturalWidth*factor));
+ buffer.height=Math.max(1,Math.round(src.naturalHeight*factor));
+ const painter=buffer.getContext('2d');
+ painter.imageSmoothingQuality='high';
+ painter.drawImage(src,0,0,buffer.width,buffer.height);
+ spriteCache.set(kind,{source:src,canvas:buffer});
+ return buffer;
+}
 // Spring-based smoothing keeps idle, acceleration, steps and stopping continuous.
 function updateMotion(dt){return motionRig.step(dt);}
 function drawHairMotion(g,phase,m){
@@ -329,7 +346,7 @@ function drawUserChibi(g,x,y,phase,moving,scale=1,facing='down'){
    g.rotate(theta);
    // The swing leg lifts slightly, while the stance leg remains planted.
    g.translate(0,-lift*scale);
-   g.drawImage(im,-localX*k,0,im.width*k,im.height*k);
+   g.drawImage(spriteFor(which),-localX*k,0,im.width*k,im.height*k);
    g.restore();
  }
  // Two sine-phased articulated legs; zero swing in idle and no frame popping.
@@ -338,13 +355,13 @@ function drawUserChibi(g,x,y,phase,moving,scale=1,facing='down'){
  const liftR=Math.max(0,-wave)*3.6*stepSize;
  if(wave>=0){leg('right',-angle,liftR);leg('left',angle,liftL)}
  else {leg('left',angle,liftL);leg('right',-angle,liftR)}
- if(art.skirt.complete&&art.skirt.naturalWidth)g.drawImage(art.skirt,-93.5*k,waistY,188*k,86*k);
+ if(art.skirt.complete&&art.skirt.naturalWidth)g.drawImage(spriteFor('skirt'),-93.5*k,waistY,188*k,86*k);
  // Body is attached over the skirt at a *fixed* waist pivot regardless of gait.
  g.save();const pivotY=waistY+16*scale;
  g.translate(0,pivotY);
  g.rotate(m.lean*(facing==='left'?-1:1)+Math.sin(phase*.7)*.008*m.wind);
  g.translate(-m.dir*1.3*scale,-pivotY);
- g.drawImage(body,-380*k,shoulderY,body.width*k,body.height*k);
+ g.drawImage(spriteFor('body'),-380*k,shoulderY,body.width*k,body.height*k);
  g.save();g.scale(scale,scale);drawHairMotion(g,phase,m);drawClothFlutter(g,phase,m);g.restore();
  g.restore();g.restore();
 }
@@ -354,14 +371,30 @@ function drawPreviews(){const tm=performance.now()/1000;for(const type of ['boy'
 const FLOWERS=[[-34,15],[-29,-17],[-9,28],[16,27],[32,-18],[-31,-30],[30,30],[12,-31],[39,6],[-12,-35]];
 const TREES=[[-34,-29],[-39,7],[-33,30],[-24,37],[-18,-30],[-4,-38],[7,-34],[20,-35],[34,-27],[36,20],[26,34],[-38,-12],[-26,-37],[3,39],[-7,36],[39,-5]];
 function drawTree(x,y,size=1){const ax=xp(x),ay=yp(y);ellipse(ctx,ax+2,ay+7,14*size,6*size,'#1835276b');roundRect(ctx,ax-4*size,ay-6*size,8*size,18*size,2*size,'#765844');circle(ax-8*size,ay-10*size,17*size,'#246d68');circle(ax+7*size,ay-15*size,17*size,'#2c8973');circle(ax-3*size,ay-23*size,18*size,'#3b9a79');circle(ax-5*size,ay-24*size,5*size,'#68c79842')}
+const GROUND_MARGIN=170;
+let groundCache=null;
+function paintGround(){
+ if(!groundCache){
+  const onscreen=ctx,oldX=state.camera.x,oldY=state.camera.y;
+  groundCache=document.createElement('canvas');
+  groundCache.width=W+GROUND_MARGIN*2;
+  groundCache.height=W+GROUND_MARGIN*2;
+  ctx=groundCache.getContext('2d',{alpha:false});
+  state.camera.x=0;state.camera.y=0;
+  ctx.translate(GROUND_MARGIN,GROUND_MARGIN);
+  drawGround();
+  ctx=onscreen;state.camera.x=oldX;state.camera.y=oldY;
+ }
+ ctx.drawImage(groundCache,GROUND_MARGIN+Math.round(state.camera.x*S),GROUND_MARGIN+Math.round(state.camera.y*S),W,W,0,0,W,W);
+}
 function drawGround(){
- ctx.save();ctx.fillStyle='#071a29';ctx.fillRect(0,0,W,W);
+ ctx.save();ctx.fillStyle='#071a29';ctx.fillRect(-GROUND_MARGIN,-GROUND_MARGIN,W+GROUND_MARGIN*2,W+GROUND_MARGIN*2);
  const cx=xp(0),cy=yp(0),radius=R*S;
  ctx.beginPath();ctx.arc(cx,cy,radius,0,PI2);ctx.clip();
- const grass=ctx.createLinearGradient(0,0,W,W);grass.addColorStop(0,'#285d57');grass.addColorStop(1,'#1b4845');ctx.fillStyle=grass;ctx.fillRect(0,0,W,W);
+ const grass=ctx.createLinearGradient(0,0,W,W);grass.addColorStop(0,'#285d57');grass.addColorStop(1,'#1b4845');ctx.fillStyle=grass;ctx.fillRect(-GROUND_MARGIN,-GROUND_MARGIN,W+GROUND_MARGIN*2,W+GROUND_MARGIN*2);
  // Athletic field paving and light park trails; decorations do not block the player.
  ctx.strokeStyle='#436e64';ctx.lineWidth=1.2;
- for(let v=-R;v<=R;v+=5){ctx.beginPath();ctx.moveTo(xp(v),0);ctx.lineTo(xp(v),W);ctx.moveTo(0,yp(v));ctx.lineTo(W,yp(v));ctx.stroke();}
+ for(let v=-R;v<=R;v+=5){ctx.beginPath();ctx.moveTo(xp(v),-GROUND_MARGIN);ctx.lineTo(xp(v),W+GROUND_MARGIN);ctx.moveTo(-GROUND_MARGIN,yp(v));ctx.lineTo(W+GROUND_MARGIN,yp(v));ctx.stroke();}
  ctx.strokeStyle='#a4b8a064';ctx.lineWidth=24;ctx.beginPath();ctx.moveTo(xp(-R),yp(0));ctx.lineTo(xp(R),yp(0));ctx.moveTo(xp(0),yp(-R));ctx.lineTo(xp(0),yp(R));ctx.stroke();
  ctx.strokeStyle='#c3c2a67b';ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(xp(-R),yp(0));ctx.lineTo(xp(R),yp(0));ctx.moveTo(xp(0),yp(-R));ctx.lineTo(xp(0),yp(R));ctx.stroke();
  // Painted dashed running lanes.
@@ -385,7 +418,7 @@ function drawMiniMap(){const mw=135,mh=141,mx=W-mw-16,my=15;
 function draw(){
  const glow=.5+Math.sin(performance.now()/260)*.5;
  const limit=Math.max(0,R-W/(2*S)+1);state.camera.x=clamp(state.camera.x+(state.player.x-state.camera.x)*.075,-limit,limit);state.camera.y=clamp(state.camera.y+(state.player.y-state.camera.y)*.075,-limit,limit);
- ctx.clearRect(0,0,W,W);drawGround();
+ paintGround();
  if(state.mode==='gps'&&state.accuracy>0)circle(xp(state.player.x),yp(state.player.y),Math.min(25,state.accuracy)*S,'#58a8ff22');
  if(state.orb){const x=xp(state.orb.x),y=yp(state.orb.y);circle(x,y,21+glow*9,'#ffce5440');ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillStyle='#ffd76b';ctx.fillRect(-9,-9,18,18);ctx.fillStyle='#fff6ce';ctx.fillRect(-4,-4,8,8);ctx.restore()}
  // Bot shadows, then full animated SD pursuers.
@@ -410,8 +443,23 @@ function draw(){
  if(state.running&&state.paused){ctx.fillStyle='#001726bf';ctx.fillRect(0,0,W,W);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 35px system-ui';ctx.fillText('⏸ 일시정지',W/2,335);ctx.font='18px system-ui';ctx.fillText(state.mode==='gps'?'GPS 신호 확인 중':'재개 버튼을 눌러줘',W/2,369)}
 }
 
-function frame(now){let dt=Math.min(.05,Math.max(0,(now-state.previousTime)/1000));state.previousTime=now;if(state.running&&state.mode==='gps'&&state.gpsUpdate&&now-state.gpsUpdate>15000){state.paused=true;pill('GPS 대기',true);}
- update(dt,now);updateMotion(dt);drawPreviews();for(const p of state.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}state.particles=state.particles.filter(p=>p.life>0).slice(-150);updateHUD();draw();requestAnimationFrame(frame);}
+let lastPaintTime=0,lastHUDTime=-1000,lastPreviewTime=-1000;
+const targetFrameMs=window.matchMedia('(pointer: coarse)').matches?1000/30:1000/60;
+function frame(now){
+ requestAnimationFrame(frame);
+ if(now-lastPaintTime<targetFrameMs-0.7)return;
+ lastPaintTime=now;
+ const dt=Math.min(.05,Math.max(0,(now-state.previousTime)/1000));
+ state.previousTime=now;
+ if(state.running&&state.mode==='gps'&&state.gpsUpdate&&now-state.gpsUpdate>15000){state.paused=true;pill('GPS 대기',true);}
+ update(dt,now);updateMotion(dt);
+ // The character picker does not need 60 updates per second.
+ if(!state.running&&now-lastPreviewTime>450){drawPreviews();lastPreviewTime=now;}
+ for(const p of state.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}
+ state.particles=state.particles.filter(p=>p.life>0).slice(-100);
+ if(now-lastHUDTime>120){updateHUD();lastHUDTime=now;}
+ draw();
+}
 
 /** Public façade for debugging and future modular extensions. */
 class AITagGame {
