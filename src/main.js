@@ -420,12 +420,11 @@ function drawMiniMap(){const mw=135,mh=141,mx=W-mw-16,my=15;
 }
 function draw(){
  const glow=.5+Math.sin(performance.now()/260)*.5;
- const limit=Math.max(0,R-W/(2*S)+1);state.camera.x=clamp(state.camera.x+(state.player.x-state.camera.x)*.075,-limit,limit);state.camera.y=clamp(state.camera.y+(state.player.y-state.camera.y)*.075,-limit,limit);
  paintGround();
  if(state.mode==='gps'&&state.accuracy>0)circle(xp(state.player.x),yp(state.player.y),Math.min(25,state.accuracy)*S,'#58a8ff22');
  if(state.orb){const x=xp(state.orb.x),y=yp(state.orb.y);circle(x,y,21+glow*9,'#ffce5440');ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillStyle='#ffd76b';ctx.fillRect(-9,-9,18,18);ctx.fillStyle='#fff6ce';ctx.fillRect(-4,-4,8,8);ctx.restore()}
  // Bot shadows, then full animated SD pursuers.
- for(const b of state.bots){const x=xp(b.x),y=yp(b.y),fr=state.burst>0&&state.warn<=0;circle(x,y-35,37+glow*5,fr?'#ef45634c':'#ef456326');drawAvatar(ctx,x,y,b.id==='B'?'botB':'botA',b.walk,true,1.05,b.facing);if(fr)circle(x,y-45,37,null,'#ffa6b4',3);if(b.stun>0){ctx.fillStyle='#ffe4a1';ctx.font='bold 20px system-ui';ctx.textAlign='center';ctx.fillText('✦ ✦',x,y-103);}if(state.freeze>0){ctx.fillStyle='#b7f3ff';ctx.font='28px system-ui';ctx.textAlign='center';ctx.fillText('❄',x+24,y-92)}}
+ for(const b of state.bots){const x=xp(b.x),y=yp(b.y),fr=state.burst>0&&state.warn<=0;circle(x,y-35,37+glow*5,fr?'#ef45634c':'#ef456326');drawAvatar(ctx,x,y,b.id==='B'?'botB':'botA',b.walk,state.running&&!state.paused&&state.freeze<=0&&b.stun<=0,1.05,b.facing);if(fr)circle(x,y-45,37,null,'#ffa6b4',3);if(b.stun>0){ctx.fillStyle='#ffe4a1';ctx.font='bold 20px system-ui';ctx.textAlign='center';ctx.fillText('✦ ✦',x,y-103);}if(state.freeze>0){ctx.fillStyle='#b7f3ff';ctx.font='28px system-ui';ctx.textAlign='center';ctx.fillText('❄',x+24,y-92)}}
  const x=xp(state.player.x),y=yp(state.player.y);
  if(state.dash>0)circle(x,y-37,41+glow*3,'#64f6c64c');
  if(state.cloak>0)circle(x,y-37,43+glow*3,'#d4f8fb22');
@@ -446,19 +445,37 @@ function draw(){
  if(state.running&&state.paused){ctx.fillStyle='#001726bf';ctx.fillRect(0,0,W,W);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 35px system-ui';ctx.fillText('⏸ 일시정지',W/2,335);ctx.font='18px system-ui';ctx.fillText(state.mode==='gps'?'GPS 신호 확인 중':'재개 버튼을 눌러줘',W/2,369)}
 }
 
-let lastPaintTime=0,lastHUDTime=-1000,lastPreviewTime=-1000;
+// Decouple physics from rendering so frame drops cannot slow down the enemies.
+const FIXED_STEP=1/60,MAX_FRAME_DELTA=.25,MAX_SIM_STEPS=15;
 const targetFrameMs=window.matchMedia('(pointer: coarse)').matches?1000/30:1000/60;
+let physicsAccumulator=0;
+let lastTickTime=performance.now(),lastPaintTime=0,lastHUDTime=-1000,lastPreviewTime=-1000;
 function frame(now){
  requestAnimationFrame(frame);
- if(now-lastPaintTime<targetFrameMs-0.7)return;
+ const rawDelta=Math.max(0,(now-lastTickTime)/1000);
+ lastTickTime=now;
+ if(document.hidden){physicsAccumulator=0;return;}
+ physicsAccumulator=Math.min(MAX_FRAME_DELTA,physicsAccumulator+Math.min(MAX_FRAME_DELTA,rawDelta));
+ let steps=0;
+ while(physicsAccumulator>=FIXED_STEP&&steps<MAX_SIM_STEPS){
+  if(state.running&&state.mode==='gps'&&state.gpsUpdate&&now-state.gpsUpdate>15000){
+   state.paused=true;pill('GPS 대기',true);
+  }
+  update(FIXED_STEP,now);
+  updateMotion(FIXED_STEP);
+  for(const p of state.particles){p.x+=p.vx*FIXED_STEP;p.y+=p.vy*FIXED_STEP;p.life-=FIXED_STEP;}
+  physicsAccumulator-=FIXED_STEP;
+  steps++;
+ }
+ if(steps===MAX_SIM_STEPS)physicsAccumulator=0;
+ if(now-lastPaintTime<targetFrameMs-1)return;
+ const renderDelta=Math.min(.1,(now-lastPaintTime)/1000);
  lastPaintTime=now;
- const dt=Math.min(.05,Math.max(0,(now-state.previousTime)/1000));
- state.previousTime=now;
- if(state.running&&state.mode==='gps'&&state.gpsUpdate&&now-state.gpsUpdate>15000){state.paused=true;pill('GPS 대기',true);}
- update(dt,now);updateMotion(dt);
- // The character picker does not need 60 updates per second.
+ const limit=Math.max(0,R-W/(2*S)+1);
+ const cameraAlpha=1-Math.exp(-4.7*renderDelta);
+ state.camera.x=clamp(state.camera.x+(state.player.x-state.camera.x)*cameraAlpha,-limit,limit);
+ state.camera.y=clamp(state.camera.y+(state.player.y-state.camera.y)*cameraAlpha,-limit,limit);
  if(!state.running&&now-lastPreviewTime>450){drawPreviews();lastPreviewTime=now;}
- for(const p of state.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}
  state.particles=state.particles.filter(p=>p.life>0).slice(-100);
  if(now-lastHUDTime>120){updateHUD();lastHUDTime=now;}
  draw();
